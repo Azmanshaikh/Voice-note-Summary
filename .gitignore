@@ -1,0 +1,10 @@
+node_modules/
+.env
+tmp/
+*.log
+models.json
+dummy.mp3
+frontend/
+package-lock.json
+.vscode/
+.DS_Store

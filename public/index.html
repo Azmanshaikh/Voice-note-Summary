@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VoiceNote - AI Speech to Summary</title>
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="main.css"/>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+        VoiceNote
+      </div>
+      
+      <nav class="nav-links">
+        <a class="nav-item active" data-view="dashboard">
+          <i class="fa-solid fa-house"></i> Dashboard
+        </a>
+        <a class="nav-item" data-view="transcribe">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe
+        </a>
+        <a class="nav-item" data-view="history">
+          <i class="fa-solid fa-clock-rotate-left"></i> History
+        </a>
+        <a class="nav-item" data-view="settings">
+          <i class="fa-solid fa-gear"></i> Settings
+        </a>
+      </nav>
+
+      <div class="user-profile-sm">
+        <div class="avatar">V</div>
+        <div>
+          <div style="font-weight: 500; font-size: 0.95rem;">VoiceNote User</div>
+          <div style="color: var(--text-muted); font-size: 0.8rem;">Pro Plan Active</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="header">
+        <h2 class="page-title" id="page-title">Dashboard</h2>
+        <div class="header-actions">
+          <button class="btn btn-primary" onclick="app.navigate('transcribe')">
+            <i class="fa-solid fa-plus"></i> New Note
+          </button>
+        </div>
+      </header>
+
+      <div class="view-container">
+        
+        <!-- View 1: Dashboard -->
+        <section id="view-dashboard" class="view active">
+          <div class="dashboard-grid">
+            <div class="glass-card stat-card interactive" onclick="app.navigate('history')">
+              <div class="stat-header">
+                <span>Total Transcripts</span>
+                <div class="stat-icon blue"><i class="fa-solid fa-file-audio"></i></div>
+              </div>
+              <div class="stat-value" id="dash-total">0</div>
+            </div>
+            
+            <div class="glass-card stat-card interactive" onclick="app.navigate('history')">
+              <div class="stat-header">
+                <span>Words Processed</span>
+                <div class="stat-icon purple"><i class="fa-solid fa-keyboard"></i></div>
+              </div>
+              <div class="stat-value" id="dash-words">0</div>
+            </div>
+            
+            <div class="glass-card stat-card interactive" onclick="app.navigate('settings')">
+              <div class="stat-header">
+                <span>Active Model</span>
+                <div class="stat-icon green"><i class="fa-solid fa-microchip"></i></div>
+              </div>
+              <div class="stat-value" style="font-size: 1.5rem; margin-top: auto;">Gemini 2.5 Flash</div>
+            </div>
+          </div>
+
+          <h3 style="margin-bottom: 1rem;">Recent Activity</h3>
+          <div class="glass-card">
+            <div class="history-list" id="dashboard-recent-list">
+              <p style="color: var(--text-muted); padding: 1rem;">No recent activities found. Start transcribing!</p>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- View 2: Transcribe & Summary -->
+        <section id="view-transcribe" class="view">
+          <div class="glass-card" style="margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 0.5rem;">Upload Audio</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Supported formats: mp3, wav, m4a, etc.</p>
+            
+            <div id="file-chosen-banner" class="file-chosen-banner" style="display: none;">
+              <span><i class="fa-solid fa-circle-check"></i> <span id="file-chosen-name">file.mp3</span></span>
+              <button class="btn btn-danger" onclick="app.clearFile()"><i class="fa-solid fa-trash"></i></button>
+            </div>
+
+            <div class="upload-area" id="drop-zone">
+              <input type="file" id="file-input" accept="audio/*">
+              <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+              <div class="upload-text">Drag & drop your audio file here</div>
+              <div class="upload-hint">or click to browse from your computer (Max 25MB)</div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; align-items: center; justify-content: flex-end;">
+              <select id="summary-style" class="form-select" style="width: 200px;">
+                <option value="paragraph">Paragraph Summary</option>
+                <option value="bullets">Bullet Points</option>
+                <option value="concise">Concise (Short)</option>
+                <option value="detailed">Detailed</option>
+              </select>
+              <button class="btn btn-primary" onclick="app.processAudio()" id="btn-process">
+                <i class="fa-solid fa-bolt"></i> Generate Notes
+              </button>
+            </div>
+          </div>
+
+          <div class="results-container" id="results-container">
+            <!-- Transcript Card -->
+            <div class="glass-card result-card">
+              <div class="result-header">
+                <i class="fa-solid fa-align-left"></i>
+                <h3 style="font-size: 1.1rem; margin: 0;">Full Transcript</h3>
+                <span id="res-lang" style="margin-left: auto; font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 0.2rem 0.5rem; border-radius: 4px;">EN</span>
+              </div>
+              <div class="result-content" id="res-transcript"></div>
+            </div>
+
+            <!-- Summary Card -->
+            <div class="glass-card result-card">
+              <div class="result-header">
+                <i class="fa-solid fa-lightbulb"></i>
+                <h3 style="font-size: 1.1rem; margin: 0;">AI Summary & Key Points</h3>
+              </div>
+              <div class="result-content">
+                <h4 style="margin-bottom: 0.5rem; color: #fff;">Summary</h4>
+                <div id="res-summary" style="margin-bottom: 1.5rem; line-height: 1.6;"></div>
+                
+                <h4 style="margin-bottom: 0.75rem; color: #fff;">Key Extracts</h4>
+                <ul class="key-points-list" id="res-keypoints"></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- View 3: History -->
+        <section id="view-history" class="view">
+          <div class="glass-card">
+            <div class="result-header" style="justify-content: space-between;">
+              <h3 style="margin: 0;">All Recordings</h3>
+              <button class="btn btn-danger" onclick="app.clearHistory()">
+                <i class="fa-solid fa-trash-can"></i> Clear All
+              </button>
+            </div>
+            
+            <div class="history-list" id="full-history-list" style="margin-top: 1rem;">
+              <p style="color: var(--text-muted); padding: 1rem;">No history found.</p>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- View 4: Settings -->
+        <section id="view-settings" class="view">
+          <div class="glass-card" style="max-width: 600px;">
+            <h3 style="margin-bottom: 1.5rem;">Preferences</h3>
+            
+            <div class="form-group">
+              <label class="form-label">Default Summary Style</label>
+              <select id="setting-style" class="form-select">
+                <option value="paragraph">Paragraph</option>
+                <option value="bullets">Bullets</option>
+                <option value="concise">Concise</option>
+                <option value="detailed">Detailed</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Theme</label>
+              <select class="form-select" disabled>
+                <option>Dark UI (Premium)</option>
+              </select>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Stitch Dark Premium Mode is enforced.</p>
+            </div>
+
+            <div class="form-group" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+              <label class="form-label">Backend API Engine</label>
+              <input type="text" id="setting-api" class="form-input" value="Google Gemini 1.5 / 2.5 Multimodal" disabled />
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Driven by high-performance Gemini multimodal endpoints.</p>
+            </div>
+
+            <button class="btn btn-primary" onclick="app.saveSettings()" style="width: 100%; margin-top: 1rem;">Save Preferences</button>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <h3 id="loading-text">Analyzing Audio with AI...</h3>
+  </div>
+
+  <div id="notification" class="notification">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="notif-text">Success!</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
