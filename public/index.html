@@ -50,7 +50,7 @@
       <header class="header">
         <h2 class="page-title" id="page-title">Dashboard</h2>
         <div class="header-actions">
-          <button class="btn btn-primary" onclick="app.navigate('transcribe')">
+          <button class="btn btn-primary" onclick="app.navigate('transcribe', true)">
             <i class="fa-solid fa-plus"></i> New Note
           </button>
         </div>
@@ -106,6 +106,14 @@
               <button class="btn btn-danger" onclick="app.clearFile()"><i class="fa-solid fa-trash"></i></button>
             </div>
 
+            <div id="recording-status" class="recording-status" style="display: none;">
+              <div class="pulse-red"></div>
+              <span id="recording-timer">00:00</span>
+              <button class="btn btn-danger btn-sm" onclick="app.stopRecording()">
+                <i class="fa-solid fa-stop"></i> Stop
+              </button>
+            </div>
+
             <div class="upload-area" id="drop-zone">
               <input type="file" id="file-input" accept="audio/*">
               <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
@@ -113,7 +121,11 @@
               <div class="upload-hint">or click to browse from your computer (Max 25MB)</div>
             </div>
 
-            <div style="display: flex; gap: 1rem; align-items: center; justify-content: flex-end;">
+            <div class="action-bar">
+              <button class="btn btn-secondary" onclick="app.startRecording()" id="btn-record">
+                <i class="fa-solid fa-microphone"></i> Record Voice
+              </button>
+              <div style="flex: 1;"></div>
               <select id="summary-style" class="form-select" style="width: 200px;">
                 <option value="paragraph">Paragraph Summary</option>
                 <option value="bullets">Bullet Points</option>

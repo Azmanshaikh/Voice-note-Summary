@@ -5,6 +5,12 @@ const app = {
   settings: {
     defaultStyle: 'paragraph'
   },
+  recorder: {
+    mediaRecorder: null,
+    audioChunks: [],
+    timerInterval: null,
+    startTime: null
+  },
 
   init() {
     this.setupNavigation();
@@ -30,7 +36,12 @@ const app = {
     });
   },
 
-  navigate(viewId) {
+  navigate(viewId, reset = false) {
+    // If reset is requested (e.g. from New Note), clear current transcribe state
+    if (viewId === 'transcribe' && reset) {
+      this.resetTranscribe();
+    }
+
     // Update nav active state
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.querySelector(`.nav-item[data-view="${viewId}"]`)?.classList.add('active');
@@ -91,6 +102,82 @@ const app = {
     document.getElementById('file-chosen-banner').style.display = 'none';
     document.getElementById('drop-zone').style.display = 'block';
     document.getElementById('results-container').classList.remove('visible');
+    document.getElementById('btn-record').style.display = 'flex';
+  },
+
+  resetTranscribe() {
+    this.clearFile();
+    document.getElementById('res-transcript').innerText = '';
+    document.getElementById('res-summary').innerText = '';
+    document.getElementById('res-keypoints').innerHTML = '';
+  },
+
+  async startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.recorder.mediaRecorder = new MediaRecorder(stream);
+      this.recorder.audioChunks = [];
+
+      this.recorder.mediaRecorder.ondataavailable = (event) => {
+        this.recorder.audioChunks.push(event.data);
+      };
+
+      this.recorder.mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(this.recorder.audioChunks, { type: 'audio/webm' });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        this.selectedFile = new File([audioBlob], `recording-${timestamp}.webm`, { type: 'audio/webm' });
+        
+        document.getElementById('file-chosen-name').innerText = this.selectedFile.name;
+        document.getElementById('file-chosen-banner').style.display = 'flex';
+        document.getElementById('recording-status').style.display = 'none';
+        document.getElementById('btn-record').style.display = 'none';
+        
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      this.recorder.mediaRecorder.start();
+      
+      // UI Updates
+      document.getElementById('drop-zone').style.display = 'none';
+      document.getElementById('btn-record').style.display = 'none';
+      document.getElementById('recording-status').style.display = 'flex';
+      
+      this.startTimer();
+      this.showNotif('Recording started...');
+    } catch (err) {
+      console.error('Microphone error:', err);
+      this.showNotif('Could not access microphone.', true);
+    }
+  },
+
+  stopRecording() {
+    if (this.recorder.mediaRecorder && this.recorder.mediaRecorder.state !== 'inactive') {
+      this.recorder.mediaRecorder.stop();
+      this.stopTimer();
+      this.showNotif('Recording saved!');
+    }
+  },
+
+  startTimer() {
+    this.recorder.startTime = Date.now();
+    const timerElement = document.getElementById('recording-timer');
+    
+    this.recorder.timerInterval = setInterval(() => {
+      const elapsed = Date.now() - this.recorder.startTime;
+      const seconds = Math.floor(elapsed / 1000);
+      const mm = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const ss = (seconds % 60).toString().padStart(2, '0');
+      timerElement.innerText = `${mm}:${ss}`;
+    }, 1000);
+  },
+
+  stopTimer() {
+    if (this.recorder.timerInterval) {
+      clearInterval(this.recorder.timerInterval);
+      this.recorder.timerInterval = null;
+    }
+    document.getElementById('recording-timer').innerText = '00:00';
   },
 
   async processAudio() {
