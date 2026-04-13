@@ -57,13 +57,14 @@ async function geminiProcess(filePath, apiKey, style = 'paragraph') {
     bullets:   'Write a summary as 4-6 bullet points.',
   }[style] || 'Write a clear single-paragraph summary.';
 
-  const prompt = `You are a smart note-taking assistant. Given this audio, do three things:
+  const prompt = `You are a smart note-taking assistant. Given this audio, do four things:
 1. Provide a full transcription.
 2. ${stylePrompt}
 3. Extract exactly 5 key points as short, clear sentences.
+4. Provide a direct solution, answer, or helpful advice to any problems or questions mentioned in the audio.
 
 Respond ONLY in this strict JSON format (no markdown formatting or extra text):
-{"transcript":"...","summary":"...","keyPoints":["...","...","...","...","..."]}`;
+{"transcript":"...","summary":"...","keyPoints":["...","...","...","...","..."],"solution":"..."}`;
 
   const requestBody = {
     contents: [{
@@ -124,6 +125,7 @@ app.post('/api/process', upload.single('file'), async (req, res) => {
       wordCount:  (result.transcript || '').split(/\s+/).filter(Boolean).length,
       summary:    result.summary,
       keyPoints:  result.keyPoints || [],
+      solution:   result.solution || '',
     });
   } catch (err) {
     cleanup(req.file?.path);

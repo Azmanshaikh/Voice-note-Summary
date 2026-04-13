@@ -110,6 +110,10 @@ const app = {
     document.getElementById('res-transcript').innerText = '';
     document.getElementById('res-summary').innerText = '';
     document.getElementById('res-keypoints').innerHTML = '';
+    const solutionEl = document.getElementById('res-solution');
+    if (solutionEl) solutionEl.innerText = '';
+    const solutionCard = document.getElementById('solution-card');
+    if (solutionCard) solutionCard.style.display = 'none';
   },
 
   async startRecording() {
@@ -230,6 +234,14 @@ const app = {
       li.innerText = pt;
       kpList.appendChild(li);
     });
+
+    const solutionCard = document.getElementById('solution-card');
+    if (data.solution && solutionCard) {
+      document.getElementById('res-solution').innerText = data.solution;
+      solutionCard.style.display = 'block';
+    } else if (solutionCard) {
+      solutionCard.style.display = 'none';
+    }
 
     document.getElementById('results-container').classList.add('visible');
     // Scroll down to results
