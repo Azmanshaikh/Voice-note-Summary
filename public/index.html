@@ -98,9 +98,21 @@
         <!-- View 2: Transcribe & Summary -->
         <section id="view-transcribe" class="view">
           <div class="glass-card" style="margin-bottom: 2rem;">
-            <h3 style="margin-bottom: 0.5rem;">Upload Audio</h3>
-            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Supported formats: mp3, wav, m4a, etc.</p>
-            
+            <h3 style="margin-bottom: 1rem;">Add Audio Source</h3>
+
+            <!-- Source tabs -->
+            <div class="source-tabs">
+              <button class="source-tab active" id="tab-upload" onclick="app.switchInputMode('upload')">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload File
+              </button>
+              <button class="source-tab" id="tab-record" onclick="app.switchInputMode('record')">
+                <i class="fa-solid fa-microphone"></i> Record Voice
+              </button>
+              <button class="source-tab" id="tab-url" onclick="app.switchInputMode('url')">
+                <i class="fa-brands fa-youtube"></i> YouTube / URL
+              </button>
+            </div>
+
             <div id="file-chosen-banner" class="file-chosen-banner" style="display: none;">
               <span><i class="fa-solid fa-circle-check"></i> <span id="file-chosen-name">file.mp3</span></span>
               <button class="btn btn-danger" onclick="app.clearFile()"><i class="fa-solid fa-trash"></i></button>
@@ -114,17 +126,33 @@
               </button>
             </div>
 
-            <div class="upload-area" id="drop-zone">
-              <input type="file" id="file-input" accept="audio/*">
-              <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
-              <div class="upload-text">Drag & drop your audio file here</div>
-              <div class="upload-hint">or click to browse from your computer (Max 25MB)</div>
+            <!-- Upload section -->
+            <div id="upload-section">
+              <div class="upload-area" id="drop-zone">
+                <input type="file" id="file-input" accept="audio/*">
+                <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                <div class="upload-text">Drag & drop your audio file here</div>
+                <div class="upload-hint">or click to browse from your computer (Max 25MB)</div>
+              </div>
+            </div>
+
+            <!-- Record section -->
+            <div id="record-section" style="display:none; text-align:center; padding: 2rem 0;">
+              <button class="btn btn-secondary" style="font-size:1rem; padding: 0.9rem 2rem;" onclick="app.startRecording()" id="btn-record">
+                <i class="fa-solid fa-microphone"></i> Start Recording
+              </button>
+              <p style="color: var(--text-muted); margin-top: 1rem; font-size: 0.85rem;">Click to capture audio from your microphone</p>
+            </div>
+
+            <!-- URL section -->
+            <div id="url-section" style="display:none; padding: 1.5rem 0 0.5rem;">
+              <input type="url" id="url-input" class="form-input" placeholder="https://www.youtube.com/watch?v=..." style="margin-bottom:0.6rem;" />
+              <p style="color: var(--text-muted); font-size: 0.82rem;">
+                Paste any YouTube, Vimeo, SoundCloud, or direct audio/video URL. Audio is extracted server-side via <code style="background:rgba(255,255,255,0.07);padding:0.1em 0.4em;border-radius:3px;">yt-dlp</code>.
+              </p>
             </div>
 
             <div class="action-bar">
-              <button class="btn btn-secondary" onclick="app.startRecording()" id="btn-record">
-                <i class="fa-solid fa-microphone"></i> Record Voice
-              </button>
               <div style="flex: 1;"></div>
               <select id="summary-style" class="form-select" style="width: 200px;">
                 <option value="paragraph">Paragraph Summary</option>
@@ -132,7 +160,7 @@
                 <option value="concise">Concise (Short)</option>
                 <option value="detailed">Detailed</option>
               </select>
-              <button class="btn btn-primary" onclick="app.processAudio()" id="btn-process">
+              <button class="btn btn-primary" onclick="app.handleGenerate()" id="btn-process">
                 <i class="fa-solid fa-bolt"></i> Generate Notes
               </button>
             </div>
@@ -172,6 +200,92 @@
               </div>
               <div class="result-content" id="res-solution" style="line-height: 1.6;"></div>
             </div>
+
+            <!-- Avatar Explainer Card (full width) -->
+            <div class="glass-card result-card avatar-card-full" id="avatar-card" style="display: none;">
+              <div class="result-header">
+                <i class="fa-solid fa-circle-user"></i>
+                <h3 style="font-size: 1.1rem; margin: 0;">Avatar Explainer</h3>
+              </div>
+              <div class="avatar-explainer-content">
+
+                <!-- CSS animated avatar + browser TTS -->
+                <div class="avatar-tts-section">
+                  <div class="css-avatar" id="css-avatar" onclick="app.speakSummary()">
+                    <div class="avatar-face">
+                      <div class="avatar-eyes">
+                        <div class="avatar-eye"></div>
+                        <div class="avatar-eye right"></div>
+                      </div>
+                      <div class="avatar-mouth" id="avatar-mouth"></div>
+                    </div>
+                  </div>
+                  <div class="avatar-speak-btn-group">
+                    <button class="btn btn-primary btn-sm" id="btn-speak" onclick="app.speakSummary()">
+                      <i class="fa-solid fa-volume-high"></i> Speak
+                    </button>
+                    <button class="btn btn-danger btn-sm" id="btn-stop-speak" onclick="app.stopSpeaking()" style="display:none;">
+                      <i class="fa-solid fa-stop"></i> Stop
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Info + NVIDIA section -->
+                <div class="avatar-info-section">
+                  <h4>Listen to your summary</h4>
+                  <p>Click <strong>Speak</strong> to hear the summary read aloud by your browser's built-in voice. Or generate a real talking avatar video powered by NVIDIA below.</p>
+
+                  <!-- NVIDIA Audio2Face-2D -->
+                  <div class="nvidia-section">
+                    <div class="nvidia-header">
+                      <i class="fa-solid fa-robot" style="color:#76b900;"></i>
+                      <span style="font-weight:600;">NVIDIA Audio2Face-2D</span>
+                      <span class="nvidia-badge">NIM · Free</span>
+                    </div>
+                    <div id="nvidia-avatar-video" class="nvidia-video-wrapper" style="display:none;">
+                      <video id="avatar-video" controls loop></video>
+                    </div>
+                    <button class="btn btn-nvidia" id="btn-nvidia-avatar" onclick="app.generateAvatar()">
+                      <i class="fa-solid fa-film"></i> Generate Avatar Video
+                    </button>
+                    <p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">
+                      Requires NVIDIA API key + face photo — add both in <a href="#" onclick="app.navigate('settings');return false;" style="color:#76b900;">Settings</a>.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            <!-- Chat Card (full width) -->
+            <div class="glass-card result-card avatar-card-full" id="chat-card" style="display:none;">
+              <div class="result-header">
+                <i class="fa-solid fa-comments"></i>
+                <h3 style="font-size:1.1rem;margin:0;">Chat with your Note</h3>
+                <span style="margin-left:auto;font-size:0.78rem;color:var(--text-muted);">Powered by Groq / Gemini</span>
+              </div>
+
+              <div class="chat-messages" id="chat-messages">
+                <div class="chat-bubble ai">
+                  <div class="chat-avatar-icon"><i class="fa-solid fa-robot"></i></div>
+                  <div class="chat-bubble-text">I've read your note. Ask me anything about it!</div>
+                </div>
+              </div>
+
+              <div class="chat-input-bar">
+                <input
+                  type="text"
+                  id="chat-input"
+                  class="form-input"
+                  placeholder="Ask something about this note…"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();app.sendChat();}"
+                  style="flex:1;"
+                />
+                <button class="btn btn-primary" id="btn-chat-send" onclick="app.sendChat()">
+                  <i class="fa-solid fa-paper-plane"></i>
+                </button>
+              </div>
+            </div>
+
           </div>
         </section>
 
@@ -220,6 +334,34 @@
               <label class="form-label">Backend API Engine</label>
               <input type="text" id="setting-api" class="form-input" value="Google Gemini 1.5 / 2.5 Multimodal" disabled />
               <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Driven by high-performance Gemini multimodal endpoints.</p>
+            </div>
+
+            <!-- NVIDIA Avatar Settings -->
+            <div class="form-group" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem;">
+                <i class="fa-solid fa-robot" style="color:#76b900;"></i>
+                <label class="form-label" style="margin:0;">NVIDIA API Key</label>
+                <span class="nvidia-badge" style="margin-left:auto;">Audio2Face-2D</span>
+              </div>
+              <input type="password" id="setting-nvidia-key" class="form-input" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxx" />
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">
+                Free key from <strong style="color:#76b900;">build.nvidia.com</strong> (1,000 free credits on signup).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Avatar Face Photo</label>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">Upload a clear portrait photo. NVIDIA will animate this face to explain your notes.</p>
+              <div class="face-upload-group">
+                <img id="face-preview" src="" alt="face preview" />
+                <div>
+                  <input type="file" id="face-upload-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="app.uploadFaceImage()" />
+                  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('face-upload-input').click()">
+                    <i class="fa-solid fa-image"></i> Choose Photo
+                  </button>
+                  <p id="face-upload-status" style="color:var(--text-muted);font-size:0.8rem;margin-top:0.4rem;"></p>
+                </div>
+              </div>
             </div>
 
             <button class="btn btn-primary" onclick="app.saveSettings()" style="width: 100%; margin-top: 1rem;">Save Preferences</button>
