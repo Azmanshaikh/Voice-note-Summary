@@ -1,10 +1,21 @@
-node_modules/
+# Environment & secrets
 .env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Temp audio/video files
 tmp/
+
+# Logs
 *.log
-models.json
-dummy.mp3
-frontend/
-package-lock.json
-.vscode/
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*.json
