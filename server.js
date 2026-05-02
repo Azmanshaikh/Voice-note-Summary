@@ -1,19 +1,3 @@
-/**
- * VoiceNote — Speech → Text → Summary
- * Backend Server (Node.js + Express)
- *
- * APIs used:
- *   - Google Gemini 1.5 Flash (Multimodal Audio + Text)
- *
- * Setup:
- *   npm install
- *   cp .env.example .env   # add your GEMINI_API_KEY
- *   node server.js
- *
- * Endpoints:
- *   POST /api/process      — audio → transcript + summary + key points (all-in-one via Gemini)
- */
-
 require('dotenv').config();
 const express    = require('express');
 const multer     = require('multer');
@@ -54,72 +38,48 @@ const imageUpload = multer({
 
 function cleanup(p) { if (p) fs.unlink(p, () => {}); }
 
-/**
- * Perform all-in-one transcription and summarization using Google Gemini 1.5 Flash.
- */
-async function geminiProcess(filePath, apiKey, style = 'paragraph') {
-  if (!apiKey) throw new Error('API Key missing.');
+const STYLE_PROMPTS = {
+  concise:   'Write a concise 2-3 sentence summary.',
+  paragraph: 'Write a clear single-paragraph summary.',
+  detailed:  'Write a detailed multi-paragraph summary covering all main points.',
+  bullets:   'Write a summary as 4-6 bullet points.',
+};
 
+// Gemini: multimodal all-in-one transcription + summarization
+async function geminiProcess(filePath, style = 'paragraph') {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set in .env');
+
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.paragraph;
   const audioBase64 = fs.readFileSync(filePath).toString('base64');
-
-  const stylePrompt = {
-    concise:   'Write a concise 2-3 sentence summary.',
-    paragraph: 'Write a clear single-paragraph summary.',
-    detailed:  'Write a detailed multi-paragraph summary covering all main points.',
-    bullets:   'Write a summary as 4-6 bullet points.',
-  }[style] || 'Write a clear single-paragraph summary.';
 
   const prompt = `You are a smart note-taking assistant. Given this audio, do four things:
 1. Provide a full transcription.
 2. ${stylePrompt}
 3. Extract exactly 5 key points as short, clear sentences.
-4. Provide a direct solution, answer, or helpful advice to any problems or questions mentioned in the audio.
+4. Provide a direct solution, answer, or helpful advice to any problems or questions mentioned.
 
-Respond ONLY in this strict JSON format (no markdown formatting or extra text):
+Respond ONLY in this strict JSON format (no markdown or extra text):
 {"transcript":"...","summary":"...","keyPoints":["...","...","...","...","..."],"solution":"..."}`;
-
-  const requestBody = {
-    contents: [{
-      parts: [
-        { text: prompt },
-        { inlineData: { mimeType: "audio/mp3", data: audioBase64 } }
-      ]
-    }]
-  };
-
-  const headers = { 'Content-Type': 'application/json' };
 
   const { data } = await axios.post(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    requestBody,
-    { headers, maxBodyLength: Infinity, maxContentLength: Infinity }
+    { contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: 'audio/mp3', data: audioBase64 } }] }] },
+    { headers: { 'Content-Type': 'application/json' }, maxBodyLength: Infinity, maxContentLength: Infinity }
   );
 
-  const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawContent) throw new Error('No content returned from Gemini');
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!raw) throw new Error('No content from Gemini');
 
-  const cleanRaw = rawContent.replace(/```json|```/g, '').trim();
-  try {
-    return JSON.parse(cleanRaw);
-  } catch(e) {
-    throw new Error('Failed to parse Gemini JSON response: ' + cleanRaw);
-  }
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
 }
 
-/**
- * Transcribe via Groq Whisper, then summarize via Groq LLaMA.
- */
+// Transcribe via Groq Whisper, then summarize via Groq LLaMA.
 async function groqProcess(filePath, apiKey, style = 'paragraph') {
   if (!apiKey) throw new Error('Groq API key missing.');
 
-  const stylePrompt = {
-    concise:   'Write a concise 2-3 sentence summary.',
-    paragraph: 'Write a clear single-paragraph summary.',
-    detailed:  'Write a detailed multi-paragraph summary covering all main points.',
-    bullets:   'Write a summary as 4-6 bullet points.',
-  }[style] || 'Write a clear single-paragraph summary.';
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.paragraph;
 
-  // Step 1 — transcribe with Whisper
   const form = new FormData();
   form.append('file', fs.createReadStream(filePath), { filename: 'audio.mp3', contentType: 'audio/mp3' });
   form.append('model', 'whisper-large-v3');
@@ -131,7 +91,6 @@ async function groqProcess(filePath, apiKey, style = 'paragraph') {
     { headers: { ...form.getHeaders(), Authorization: `Bearer ${apiKey}` }, maxBodyLength: Infinity }
   );
 
-  // Step 2 — summarize + key points + solution with LLaMA
   const prompt = `You are a smart note-taking assistant. Given this transcript, do three things:
 1. ${stylePrompt}
 2. Extract exactly 5 key points as short, clear sentences.
@@ -160,11 +119,6 @@ Respond ONLY in this strict JSON format (no markdown or extra text):
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/process  — all-in-one
- * Multipart: file (audio), style?
- * Header:    x-gemini-key
- */
 app.post('/api/process', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No audio file provided.' });
 
@@ -209,16 +163,10 @@ app.post('/api/process', upload.single('file'), async (req, res) => {
 
 // ─── URL / YouTube Route ──────────────────────────────────────────────────────
 
-/**
- * POST /api/process-url
- * Body: { url, style? }
- * Downloads audio via yt-dlp, then runs the same Groq→Gemini pipeline.
- */
 app.post('/api/process-url', express.json(), async (req, res) => {
   const { url, style = 'paragraph' } = req.body || {};
   if (!url) return res.status(400).json({ error: 'No URL provided.' });
 
-  // Basic URL validation before spawning yt-dlp
   try { new URL(url); } catch {
     return res.status(400).json({ error: 'Invalid URL. Please paste a full URL starting with https://' });
   }
@@ -231,7 +179,6 @@ app.post('/api/process-url', express.json(), async (req, res) => {
   let audioOut  = null;
 
   try {
-    // Download best native audio — no ffmpeg conversion needed
     await new Promise((resolve, reject) => {
       const proc = spawn('yt-dlp', [
         '--format', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
@@ -249,8 +196,7 @@ app.post('/api/process-url', express.json(), async (req, res) => {
       proc.on('close', code => code === 0 ? resolve() : reject(new Error(`yt-dlp failed: ${stderr.slice(-300)}`)));
     });
 
-    // Find whichever file yt-dlp actually created (extension varies)
-    const baseName  = path.basename(outBase);
+    const baseName   = path.basename(outBase);
     const downloaded = fs.readdirSync('tmp').find(f => f.startsWith(baseName));
     audioOut = downloaded ? path.join('tmp', downloaded) : null;
 
@@ -286,18 +232,12 @@ app.post('/api/process-url', express.json(), async (req, res) => {
 
 // ─── Chat Route ───────────────────────────────────────────────────────────────
 
-/**
- * POST /api/chat
- * Body:    { message, transcript, history: [{role,content}] }
- * Headers: x-groq-key | x-gemini-key
- * Returns: { reply, provider }
- */
 app.post('/api/chat', express.json(), async (req, res) => {
   const { message, transcript, history = [] } = req.body || {};
   const groqKey   = req.headers['x-groq-key']  || process.env.GROQ_API_KEY;
   const geminiKey = req.headers['x-gemini-key'] || process.env.GEMINI_API_KEY;
 
-  if (!message)             return res.status(400).json({ error: 'No message provided.' });
+  if (!message)               return res.status(400).json({ error: 'No message provided.' });
   if (!groqKey && !geminiKey) return res.status(401).json({ error: 'Missing API key.' });
 
   const systemPrompt = transcript
@@ -343,13 +283,11 @@ app.post('/api/chat', express.json(), async (req, res) => {
 
 // ─── Avatar Helpers ───────────────────────────────────────────────────────────
 
-// Convert text → MP3 using free Google Translate TTS (no key needed)
 function textToSpeechFile(text) {
   return new Promise((resolve, reject) => {
     const gTTS    = require('node-gtts');
     const tts     = gTTS('en');
     const outPath = path.join('tmp', `tts_${Date.now()}.mp3`);
-    // Truncate to avoid hitting TTS limits
     const chunk   = text.length > 800 ? text.substring(0, 797) + '...' : text;
     tts.save(outPath, chunk, (err) => {
       if (err) reject(new Error('TTS failed: ' + err.message));
@@ -358,8 +296,6 @@ function textToSpeechFile(text) {
   });
 }
 
-// Send audio + face image to NVIDIA Audio2Face-2D NIM → returns MP4 buffer
-// Endpoint documented at: https://build.nvidia.com/nvidia/audio2face-2d
 async function callNvidiaAudio2Face(audioPath, facePath, nvidiaKey) {
   const form = new FormData();
   form.append('audio', fs.createReadStream(audioPath), {
@@ -391,7 +327,6 @@ async function callNvidiaAudio2Face(audioPath, facePath, nvidiaKey) {
 
 // ─── Avatar Routes ────────────────────────────────────────────────────────────
 
-// POST /api/avatar/face  — save the user's face image for avatar generation
 app.post('/api/avatar/face', imageUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided.' });
   const dest = path.join('tmp', 'user_avatar.jpg');
@@ -404,13 +339,12 @@ app.post('/api/avatar/face', imageUpload.single('image'), (req, res) => {
   }
 });
 
-// POST /api/avatar  — summary text → TTS → NVIDIA Audio2Face-2D → MP4 video
 app.post('/api/avatar', express.json(), async (req, res) => {
   const { text } = req.body || {};
   const nvidiaKey = req.headers['x-nvidia-key'] || process.env.NVIDIA_API_KEY;
 
-  if (!text)       return res.status(400).json({ error: 'No text provided.' });
-  if (!nvidiaKey)  return res.status(401).json({ error: 'Missing NVIDIA API key. Get one free at build.nvidia.com' });
+  if (!text)      return res.status(400).json({ error: 'No text provided.' });
+  if (!nvidiaKey) return res.status(401).json({ error: 'Missing NVIDIA API key. Get one free at build.nvidia.com' });
 
   const facePath = path.join('tmp', 'user_avatar.jpg');
   if (!fs.existsSync(facePath)) {
@@ -435,9 +369,9 @@ app.post('/api/avatar', express.json(), async (req, res) => {
   }
 });
 
-// Serve static frontend
-app.use(express.static('public'));
+// ─── Static & Health ──────────────────────────────────────────────────────────
 
+app.use(express.static('public'));
 app.get('/health', (_, res) => res.json({ status: 'ok', port: PORT }));
 
 app.use((err, req, res, next) => {
@@ -450,6 +384,6 @@ app.use((err, req, res, next) => {
 if (!fs.existsSync('tmp')) fs.mkdirSync('tmp');
 
 app.listen(PORT, () => {
-  console.log(`\n🎙️  VoiceNote backend → http://localhost:${PORT}`);
-  console.log(`   POST /api/process     — audio → transcript + summary + key points (Gemini)\n`);
+  const provider = process.env.GROQ_API_KEY ? 'Groq (Whisper + LLaMA 3.3)' : 'Gemini 2.5 Flash';
+  console.log(`\n🎙️  VoiceNote → http://localhost:${PORT}  [${provider}]\n`);
 });

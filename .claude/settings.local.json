@@ -4,7 +4,10 @@
       "Bash(npm install *)",
       "Bash(node --check server.js)",
       "Skill(keybindings-help)",
-      "Skill(keybindings-help:*)"
+      "Skill(keybindings-help:*)",
+      "Bash(del \"c:\\\\Projects\\\\Voice-note-Summary\\\\test.js\")",
+      "Bash(git add *)",
+      "Bash(git rebase *)"
     ]
   }
 }
