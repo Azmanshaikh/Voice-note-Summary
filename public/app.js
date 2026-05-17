@@ -368,12 +368,12 @@ const app = {
         <div class="history-info">
           <div class="history-icon"><i class="fa-solid fa-microphone-lines"></i></div>
           <div class="history-details">
-            <h4>${item.filename}</h4>
+            <h4>${this._escapeHtml(item.filename)}</h4>
             <p>${new Date(item.date).toLocaleString()} • ${item.wordCount || 0} words</p>
           </div>
         </div>
         <div class="history-actions">
-          <button class="btn btn-secondary" onclick="app.viewHistoryItem('${item.id}')">View</button>
+          <button class="btn btn-secondary" onclick="app.viewHistoryItem('${this._escapeHtml(item.id)}')">View</button>
         </div>
       </div>
     `;

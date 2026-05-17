@@ -13,11 +13,23 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-app.use(cors({ origin: '*' }));
+const ALLOWED_ORIGINS = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)) }));
 app.use(express.json({ limit: '20mb' }));
 
+const TMP_DIR = path.join(__dirname, 'tmp');
+
+function isInternalUrl(rawUrl) {
+  try {
+    const { hostname } = new URL(rawUrl);
+    return /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|0\.0\.0\.0$|169\.254\.)/.test(hostname);
+  } catch {
+    return true;
+  }
+}
+
 const upload = multer({
-  dest: 'tmp/',
+  dest: TMP_DIR,
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = file.originalname.match(/\.(mp3|wav|ogg|webm|m4a|mp4|flac)$/i);
@@ -26,7 +38,7 @@ const upload = multer({
 });
 
 const imageUpload = multer({
-  dest: 'tmp/',
+  dest: TMP_DIR,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = file.mimetype.match(/^image\/(jpeg|png|webp)$/);
@@ -170,12 +182,15 @@ app.post('/api/process-url', express.json(), async (req, res) => {
   try { new URL(url); } catch {
     return res.status(400).json({ error: 'Invalid URL. Please paste a full URL starting with https://' });
   }
+  if (isInternalUrl(url)) {
+    return res.status(400).json({ error: 'URL points to a private or internal address.' });
+  }
 
   const groqKey   = req.headers['x-groq-key']  || process.env.GROQ_API_KEY;
   const geminiKey = req.headers['x-gemini-key'] || process.env.GEMINI_API_KEY;
   if (!groqKey && !geminiKey) return res.status(401).json({ error: 'Missing API key.' });
 
-  const outBase = path.join('tmp', `url_${Date.now()}`);
+  const outBase = path.join(TMP_DIR, `url_${Date.now()}`);
   let audioOut  = null;
 
   try {
@@ -197,8 +212,8 @@ app.post('/api/process-url', express.json(), async (req, res) => {
     });
 
     const baseName   = path.basename(outBase);
-    const downloaded = fs.readdirSync('tmp').find(f => f.startsWith(baseName));
-    audioOut = downloaded ? path.join('tmp', downloaded) : null;
+    const downloaded = fs.readdirSync(TMP_DIR).find(f => f.startsWith(baseName));
+    audioOut = downloaded ? path.join(TMP_DIR, downloaded) : null;
 
     if (!audioOut) return res.status(500).json({ error: 'Audio extraction produced no output file.' });
 
@@ -287,7 +302,7 @@ function textToSpeechFile(text) {
   return new Promise((resolve, reject) => {
     const gTTS    = require('node-gtts');
     const tts     = gTTS('en');
-    const outPath = path.join('tmp', `tts_${Date.now()}.mp3`);
+    const outPath = path.join(TMP_DIR, `tts_${Date.now()}.mp3`);
     const chunk   = text.length > 800 ? text.substring(0, 797) + '...' : text;
     tts.save(outPath, chunk, (err) => {
       if (err) reject(new Error('TTS failed: ' + err.message));
@@ -329,7 +344,7 @@ async function callNvidiaAudio2Face(audioPath, facePath, nvidiaKey) {
 
 app.post('/api/avatar/face', imageUpload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image provided.' });
-  const dest = path.join('tmp', 'user_avatar.jpg');
+  const dest = path.join(TMP_DIR, 'user_avatar.jpg');
   try {
     fs.renameSync(req.file.path, dest);
     res.json({ success: true });
@@ -346,7 +361,7 @@ app.post('/api/avatar', express.json(), async (req, res) => {
   if (!text)      return res.status(400).json({ error: 'No text provided.' });
   if (!nvidiaKey) return res.status(401).json({ error: 'Missing NVIDIA API key. Get one free at build.nvidia.com' });
 
-  const facePath = path.join('tmp', 'user_avatar.jpg');
+  const facePath = path.join(TMP_DIR, 'user_avatar.jpg');
   if (!fs.existsSync(facePath)) {
     return res.status(400).json({ error: 'No face image uploaded. Please upload a face image in Settings first.' });
   }
@@ -381,7 +396,7 @@ app.use((err, req, res, next) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-if (!fs.existsSync('tmp')) fs.mkdirSync('tmp');
+if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR);
 
 app.listen(PORT, () => {
   const provider = process.env.GROQ_API_KEY ? 'Groq (Whisper + LLaMA 3.3)' : 'Gemini 2.5 Flash';

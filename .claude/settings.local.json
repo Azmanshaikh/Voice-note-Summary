@@ -7,7 +7,8 @@
       "Skill(keybindings-help:*)",
       "Bash(del \"c:\\\\Projects\\\\Voice-note-Summary\\\\test.js\")",
       "Bash(git add *)",
-      "Bash(git rebase *)"
+      "Bash(git rebase *)",
+      "Bash(git push *)"
     ]
   }
 }
