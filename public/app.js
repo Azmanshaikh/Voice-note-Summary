@@ -7,7 +7,6 @@ const app = {
   chatHistory:     [],
   settings: {
     defaultStyle: 'paragraph',
-    nvidiaKey:    '',
     hasFaceImage: false,
   },
   recorder: {
@@ -401,7 +400,6 @@ const app = {
 
   saveSettings() {
     this.settings.defaultStyle = document.getElementById('setting-style').value;
-    this.settings.nvidiaKey    = document.getElementById('setting-nvidia-key').value.trim();
     this.saveData();
     document.getElementById('summary-style').value = this.settings.defaultStyle;
     this.showNotif('Preferences saved successfully!');
@@ -417,7 +415,6 @@ const app = {
         this.settings = { ...this.settings, ...JSON.parse(storedSettings) };
         document.getElementById('setting-style').value    = this.settings.defaultStyle;
         document.getElementById('summary-style').value    = this.settings.defaultStyle;
-        document.getElementById('setting-nvidia-key').value = this.settings.nvidiaKey || '';
         if (this.settings.hasFaceImage) {
           document.getElementById('face-upload-status').innerText = 'Face photo already uploaded.';
         }
@@ -569,14 +566,8 @@ const app = {
   },
 
   async generateAvatar() {
-    const summary   = document.getElementById('res-summary').innerText;
-    const nvidiaKey = this.settings.nvidiaKey;
+    const summary = document.getElementById('res-summary').innerText;
 
-    if (!nvidiaKey) {
-      this.showNotif('Add your NVIDIA API key in Settings first', true);
-      this.navigate('settings');
-      return;
-    }
     if (!this.settings.hasFaceImage) {
       this.showNotif('Upload a face photo in Settings first', true);
       this.navigate('settings');
@@ -592,7 +583,7 @@ const app = {
     try {
       const response = await fetch('/api/avatar', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'x-nvidia-key': nvidiaKey },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ text: summary }),
       });
 
